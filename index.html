@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>蚊を潰すバカゲー DX</title>
+  <style>
+    :root {
+      --ink: #25233a;
+      --paper: #fff9e9;
+      --red: #ff477e;
+      --yellow: #ffd166;
+      --blue: #4cc9f0;
+      --green: #72dd9b;
+      --purple: #845ef7;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      color: var(--ink);
+      background: #dff8ef;
+      font-family: "Hiragino Maru Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    button {
+      border: 0;
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .game {
+      position: relative;
+      width: min(100vw, 920px);
+      height: 100dvh;
+      max-height: 920px;
+      margin: auto;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 10% 18%, rgba(255, 209, 102, .7) 0 6%, transparent 6.5%),
+        radial-gradient(circle at 86% 74%, rgba(76, 201, 240, .35) 0 9%, transparent 9.5%),
+        repeating-linear-gradient(45deg, transparent 0 25px, rgba(255,255,255,.18) 25px 50px),
+        linear-gradient(150deg, #fff9e9, #dff8ef);
+      transition: background .25s, filter .15s;
+    }
+
+    .game.last-five {
+      background:
+        repeating-linear-gradient(-45deg, rgba(255,255,255,.12) 0 18px, transparent 18px 36px),
+        linear-gradient(135deg, #ffcf5c, #ff668f 55%, #9b5de5);
+      animation: panic-bg .35s steps(2) infinite;
+    }
+
+    .game.shake {
+      animation: shake .18s linear;
+    }
+
+    .hud {
+      position: absolute;
+      z-index: 50;
+      top: max(10px, env(safe-area-inset-top));
+      left: 10px;
+      right: 10px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 7px;
+      pointer-events: none;
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 8px 4px;
+      border: 3px solid var(--ink);
+      border-radius: 15px;
+      background: rgba(255,255,255,.9);
+      box-shadow: 0 5px 0 rgba(37,35,58,.2);
+      text-align: center;
+    }
+
+    .stat small {
+      display: block;
+      overflow: hidden;
+      font-size: clamp(.6rem, 2.7vw, .8rem);
+      font-weight: 900;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: clamp(1.25rem, 5vw, 1.9rem);
+      line-height: 1.05;
+    }
+
+    .title-bar {
+      position: absolute;
+      z-index: 45;
+      top: max(83px, calc(env(safe-area-inset-top) + 73px));
+      left: 50%;
+      width: min(92%, 520px);
+      padding: 6px 14px;
+      border: 3px solid var(--ink);
+      border-radius: 999px;
+      background: var(--yellow);
+      box-shadow: 0 4px 0 var(--ink);
+      text-align: center;
+      transform: translateX(-50%) rotate(-1deg);
+      pointer-events: none;
+    }
+
+    .title-bar span {
+      display: block;
+      font-size: clamp(.78rem, 3.3vw, 1rem);
+      font-weight: 1000;
+    }
+
+    .title-bar b {
+      color: var(--red);
+    }
+
+    .panic {
+      display: none;
+      position: absolute;
+      z-index: 48;
+      top: 143px;
+      left: 50%;
+      width: 100%;
+      color: #fff;
+      font-size: clamp(1.4rem, 8vw, 3rem);
+      font-weight: 1000;
+      text-align: center;
+      text-shadow: 3px 3px 0 var(--ink);
+      transform: translateX(-50%) rotate(-3deg);
+      pointer-events: none;
+      animation: panic-text .35s infinite alternate;
+    }
+
+    .last-five .panic {
+      display: block;
+    }
+
+    .arena {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+
+    .arena::after {
+      content: "";
+      position: absolute;
+      z-index: 0;
+      right: -6%;
+      bottom: -7%;
+      width: 42%;
+      aspect-ratio: 1.5;
+      border-radius: 50% 50% 0 0;
+      background: rgba(114,221,155,.48);
+      transform: rotate(-8deg);
+      pointer-events: none;
+    }
+
+    .target {
+      position: absolute;
+      z-index: 5;
+      display: grid;
+      place-items: center;
+      width: 58px;
+      height: 58px;
+      padding: 0;
+      border-radius: 50%;
+      background: transparent;
+      transform: translate(-50%, -50%);
+      touch-action: manipulation;
+      will-change: left, top;
+    }
+
+    .target .sprite {
+      display: block;
+      font-size: 40px;
+      line-height: 1;
+      transform-origin: 50% 60%;
+      filter:
+        drop-shadow(0 1px 0 #fff)
+        drop-shadow(0 3px 0 rgba(37,35,58,.28))
+        drop-shadow(0 7px 5px rgba(37,35,58,.2));
+      pointer-events: none;
+      animation: buzz .14s ease-in-out infinite alternate;
+      will-change: transform, opacity;
+    }
+
+    .target.gold .sprite {
+      font-size: 43px;
+      filter:
+        sepia(1) saturate(8) hue-rotate(350deg)
+        drop-shadow(0 0 7px #fff)
+        drop-shadow(0 0 11px #ffd000);
+      animation-duration: .07s;
+    }
+
+    .target.boss {
+      width: 86px;
+      height: 86px;
+    }
+
+    .target.boss .sprite {
+      font-size: 68px;
+      filter:
+        drop-shadow(0 2px 0 #fff)
+        drop-shadow(0 5px 0 #b02a37)
+        drop-shadow(0 10px 7px rgba(37,35,58,.25));
+    }
+
+    .target.runner .sprite {
+      font-size: 48px;
+      filter:
+        hue-rotate(210deg) saturate(1.6)
+        drop-shadow(0 0 8px #fff)
+        drop-shadow(0 5px 4px rgba(37,35,58,.28));
+    }
+
+    .target.sleeper {
+      width: 112px;
+      height: 88px;
+      border: 3px dashed rgba(37,35,58,.32);
+      border-radius: 28px;
+      background: rgba(255,255,255,.64);
+    }
+
+    .target.sleeper .sprite {
+      font-size: 65px;
+      animation: sleep 1.2s ease-in-out infinite alternate;
+    }
+
+    .target.squashed {
+      pointer-events: none;
+    }
+
+    .target.squashed .sprite {
+      animation: squash .36s cubic-bezier(.2,.85,.35,1) forwards;
+    }
+
+    .target.hurt .sprite {
+      animation: hurt .22s linear;
+    }
+
+    .target.escaping .sprite {
+      animation: escape .3s ease-in forwards;
+    }
+
+    .speech {
+      position: absolute;
+      z-index: 35;
+      max-width: 220px;
+      padding: 5px 10px;
+      border: 2px solid var(--ink);
+      border-radius: 12px;
+      color: var(--ink);
+      background: #fff;
+      box-shadow: 2px 3px 0 var(--ink);
+      font-size: clamp(.92rem, 4vw, 1.25rem);
+      font-weight: 1000;
+      white-space: nowrap;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      animation: speech-pop .72s ease-out forwards;
+    }
+
+    .speech.good {
+      color: #d7185c;
+      background: #fff1a8;
+    }
+
+    .speech.bad {
+      color: #fff;
+      background: var(--purple);
+    }
+
+    .combo-flash {
+      position: absolute;
+      z-index: 40;
+      left: 50%;
+      top: 47%;
+      color: #fff;
+      font-size: clamp(2.4rem, 14vw, 6rem);
+      font-weight: 1000;
+      text-align: center;
+      text-shadow:
+        4px 4px 0 var(--red),
+        -3px -3px 0 var(--blue),
+        0 7px 0 var(--ink);
+      transform: translate(-50%, -50%) rotate(-7deg);
+      pointer-events: none;
+      animation: combo-pop .65s ease-out forwards;
+    }
+
+    .screen {
+      position: absolute;
+      z-index: 100;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background: rgba(255,249,233,.78);
+      backdrop-filter: blur(8px);
+      transition: opacity .2s;
+      overflow-y: auto;
+    }
+
+    .screen.hidden {
+      visibility: hidden;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .card {
+      width: min(100%, 470px);
+      padding: clamp(22px, 7vw, 38px);
+      border: 4px solid var(--ink);
+      border-radius: 28px;
+      background: #fff;
+      box-shadow: 0 10px 0 var(--ink), 0 20px 35px rgba(37,35,58,.2);
+      text-align: center;
+      transform: rotate(-1deg);
+    }
+
+    .card .kicker {
+      margin: 0 0 7px;
+      color: var(--red);
+      font-size: .82rem;
+      font-weight: 1000;
+      letter-spacing: .13em;
+    }
+
+    h1,
+    h2 {
+      margin: 0;
+      font-weight: 1000;
+      line-height: 1.05;
+    }
+
+    h1 {
+      font-size: clamp(2.25rem, 11vw, 4rem);
+    }
+
+    h2 {
+      font-size: clamp(2rem, 10vw, 3.4rem);
+    }
+
+    .hero {
+      display: block;
+      margin: 12px auto;
+      font-size: clamp(4.5rem, 21vw, 7rem);
+      animation: hero 1s ease-in-out infinite alternate;
+    }
+
+    .rules {
+      margin: 10px 0 20px;
+      font-size: clamp(.9rem, 3.6vw, 1.06rem);
+      font-weight: 800;
+      line-height: 1.7;
+    }
+
+    .sound-choice {
+      margin: 0 auto 20px;
+      padding: 11px;
+      border: 3px solid var(--ink);
+      border-radius: 18px;
+      background: #eefcff;
+    }
+
+    .sound-choice legend {
+      padding: 0 8px;
+      font-weight: 1000;
+    }
+
+    .sound-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 9px;
+    }
+
+    .sound-option {
+      position: relative;
+      display: block;
+      cursor: pointer;
+    }
+
+    .sound-option input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .sound-option span {
+      display: block;
+      padding: 10px 8px;
+      border: 3px solid var(--ink);
+      border-radius: 13px;
+      background: #fff;
+      font-size: 1rem;
+      font-weight: 1000;
+      box-shadow: 0 3px 0 var(--ink);
+    }
+
+    .sound-option input:checked + span {
+      color: #fff;
+      background: var(--purple);
+      transform: translateY(2px);
+      box-shadow: 0 1px 0 var(--ink);
+    }
+
+    .main-button {
+      min-width: 220px;
+      padding: 15px 22px;
+      border: 3px solid var(--ink);
+      border-radius: 17px;
+      color: #fff;
+      background: var(--red);
+      box-shadow: 0 6px 0 var(--ink);
+      font-size: clamp(1.08rem, 4.5vw, 1.35rem);
+      font-weight: 1000;
+    }
+
+    .button-stack {
+      display: grid;
+      gap: 12px;
+      justify-items: center;
+    }
+
+    .share-buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 9px;
+      width: 100%;
+      margin-bottom: 10px;
+    }
+
+    .share-buttons[hidden] {
+      display: none;
+    }
+
+    .share-button {
+      min-width: 0;
+      width: 100%;
+      padding: 13px 7px;
+      font-size: clamp(.86rem, 3.4vw, 1rem);
+      white-space: nowrap;
+    }
+
+    .share-x {
+      background: #171717;
+    }
+
+    .share-threads {
+      background: #845ef7;
+    }
+
+    .share-line {
+      background: #06c755;
+    }
+
+    .retry-button {
+      margin-top: 8px;
+    }
+
+    .main-button:active {
+      transform: translateY(5px);
+      box-shadow: 0 1px 0 var(--ink);
+    }
+
+    .result-score {
+      margin: 15px 0 3px;
+      color: var(--red);
+      font-size: clamp(4rem, 19vw, 6.4rem);
+      font-weight: 1000;
+      line-height: 1;
+    }
+
+    .result-label {
+      margin-top: 5px;
+      font-weight: 900;
+    }
+
+    .result-rank {
+      position: relative;
+      margin: 14px 0 9px;
+      padding: 13px 10px;
+      border: 3px solid var(--ink);
+      border-radius: 15px;
+      background: var(--yellow);
+      font-size: clamp(1.3rem, 6vw, 1.8rem);
+      font-weight: 1000;
+      box-shadow: 0 5px 0 var(--ink);
+      transform: rotate(-1deg);
+    }
+
+    .result-comment {
+      margin: 12px 0;
+      padding: 10px;
+      border: 2px dashed var(--purple);
+      border-radius: 13px;
+      background: #f5f0ff;
+      font-size: clamp(.95rem, 4vw, 1.15rem);
+      font-weight: 800;
+      line-height: 1.5;
+    }
+
+    .mosquito-will {
+      position: relative;
+      margin: 18px 0 20px;
+      padding: 15px 12px 12px;
+      border: 3px solid var(--ink);
+      border-radius: 18px;
+      background: #eafcff;
+      box-shadow: 0 4px 0 var(--ink);
+      font-size: clamp(1rem, 4.2vw, 1.2rem);
+      font-weight: 900;
+      line-height: 1.5;
+    }
+
+    .mosquito-will::before {
+      content: "🦟 蚊からの遺言";
+      display: block;
+      margin-bottom: 6px;
+      color: var(--purple);
+      font-size: .82rem;
+      font-weight: 1000;
+      letter-spacing: .06em;
+    }
+
+    .mosquito-will::after {
+      content: "";
+      position: absolute;
+      left: 28px;
+      bottom: -13px;
+      width: 20px;
+      height: 20px;
+      border-right: 3px solid var(--ink);
+      border-bottom: 3px solid var(--ink);
+      background: #eafcff;
+      transform: rotate(45deg);
+    }
+
+    .best {
+      margin: 8px 0 16px;
+      font-size: 1.08rem;
+      font-weight: 900;
+    }
+
+    .screen.special-result .result-rank {
+      color: #fff;
+      background: linear-gradient(120deg, #ff477e, #845ef7, #4cc9f0);
+      background-size: 200% 200%;
+      text-shadow: 2px 2px 0 var(--ink);
+      animation: rank-shine .8s ease-in-out infinite alternate;
+    }
+
+    .screen.celebration {
+      background:
+        radial-gradient(circle at 15% 15%, rgba(255,209,102,.9), transparent 22%),
+        radial-gradient(circle at 85% 25%, rgba(76,201,240,.8), transparent 24%),
+        radial-gradient(circle at 50% 85%, rgba(255,71,126,.65), transparent 28%),
+        rgba(255,249,233,.86);
+      animation: celebration-bg .7s ease-in-out infinite alternate;
+    }
+
+    .screen.celebration .card {
+      box-shadow:
+        0 10px 0 var(--ink),
+        0 0 0 8px var(--yellow),
+        0 0 35px 15px rgba(255,71,126,.45);
+    }
+
+    .confetti {
+      position: absolute;
+      z-index: 105;
+      top: -30px;
+      width: 12px;
+      height: 24px;
+      border: 2px solid var(--ink);
+      pointer-events: none;
+      animation: confetti-fall 2.4s linear forwards;
+    }
+
+    @keyframes buzz {
+      from { transform: rotate(-8deg) translate(-2px,-1px) scale(.98); }
+      to { transform: rotate(8deg) translate(2px,1px) scale(1.03); }
+    }
+
+    @keyframes squash {
+      0% { transform: scale(1) rotate(0); opacity: 1; }
+      38% { transform: scaleX(1.5) scaleY(.15) rotate(8deg); opacity: 1; }
+      72% { transform: scaleX(1.65) scaleY(.08) rotate(-4deg); opacity: .9; }
+      100% { transform: scaleX(1.82) scaleY(.04) rotate(-7deg); opacity: 0; }
+    }
+
+    @keyframes hurt {
+      0%,100% { transform: translateX(0) rotate(0); }
+      25% { transform: translateX(-9px) rotate(-10deg); }
+      75% { transform: translateX(9px) rotate(10deg); }
+    }
+
+    @keyframes escape {
+      to { transform: translate(95px,-90px) scale(.35) rotate(360deg); opacity: 0; }
+    }
+
+    @keyframes sleep {
+      from { transform: rotate(-2deg) scale(1); }
+      to { transform: rotate(2deg) scale(1.04); }
+    }
+
+    @keyframes speech-pop {
+      0% { transform: translate(-50%,-30%) scale(.4) rotate(-8deg); opacity: 0; }
+      25% { transform: translate(-50%,-95%) scale(1.18) rotate(4deg); opacity: 1; }
+      75% { transform: translate(-50%,-115%) scale(1) rotate(-2deg); opacity: 1; }
+      100% { transform: translate(-50%,-145%) scale(.82); opacity: 0; }
+    }
+
+    @keyframes combo-pop {
+      0% { transform: translate(-50%,-50%) scale(.2) rotate(-12deg); opacity: 0; }
+      38% { transform: translate(-50%,-50%) scale(1.15) rotate(5deg); opacity: 1; }
+      100% { transform: translate(-50%,-75%) scale(.85) rotate(-4deg); opacity: 0; }
+    }
+
+    @keyframes hero {
+      from { transform: translateY(-5px) rotate(-9deg); }
+      to { transform: translateY(8px) rotate(9deg); }
+    }
+
+    @keyframes shake {
+      0%,100% { transform: translate(0); }
+      20% { transform: translate(-5px,3px) rotate(-.4deg); }
+      40% { transform: translate(5px,-3px) rotate(.4deg); }
+      60% { transform: translate(-4px,-2px); }
+      80% { transform: translate(4px,2px); }
+    }
+
+    @keyframes panic-bg {
+      from { filter: saturate(1); }
+      to { filter: saturate(1.35) brightness(1.08); }
+    }
+
+    @keyframes panic-text {
+      from { transform: translateX(-50%) rotate(-4deg) scale(1); }
+      to { transform: translateX(-50%) rotate(4deg) scale(1.08); }
+    }
+
+    @keyframes rank-shine {
+      from { background-position: 0 50%; transform: rotate(-2deg) scale(1); }
+      to { background-position: 100% 50%; transform: rotate(2deg) scale(1.04); }
+    }
+
+    @keyframes celebration-bg {
+      from { filter: saturate(1); }
+      to { filter: saturate(1.3) brightness(1.06); }
+    }
+
+    @keyframes confetti-fall {
+      0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+      100% { transform: translateY(110vh) rotate(720deg); opacity: .3; }
+    }
+
+    @media (min-width: 700px) {
+      body {
+        display: grid;
+        place-items: center;
+      }
+
+      .game {
+        height: min(94vh, 920px);
+        border: 4px solid var(--ink);
+        border-radius: 30px;
+        box-shadow: 0 15px 0 rgba(37,35,58,.18);
+      }
+    }
+
+    @media (max-width: 560px) {
+      .share-buttons {
+        grid-template-columns: 1fr;
+      }
+
+      .share-button {
+        min-height: 52px;
+        font-size: 1.05rem;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .target .sprite,
+      .hero {
+        animation-duration: .3s;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="game" id="game">
+    <section class="hud" aria-label="ゲーム情報">
+      <div class="stat"><small>のこり</small><strong><span id="time">30</span>秒</strong></div>
+      <div class="stat"><small>スコア</small><strong id="score">0</strong></div>
+      <div class="stat"><small>コンボ</small><strong><span id="combo">0</span>連</strong></div>
+    </section>
+
+    <div class="title-bar">
+      <span>称号：<b id="rank">ぺちぺち初心者</b> / BEST <span id="best">0</span></span>
+    </div>
+    <div class="panic">残り5秒！ 全員来た！！</div>
+    <div class="arena" id="arena" aria-label="蚊を潰すゲームエリア"></div>
+
+    <section class="screen" id="startScreen">
+      <div class="card">
+        <p class="kicker">30秒限定・無益な戦い</p>
+        <h1>蚊を潰す<br>バカゲー DX</h1>
+        <span class="hero" aria-hidden="true">🦟</span>
+        <p class="rules">
+          金ピカは高得点。デカいのは3回叩け。<br>
+          寝ている人だけは絶対に叩くな。絶対だ。
+        </p>
+        <fieldset class="sound-choice">
+          <legend>効果音</legend>
+          <div class="sound-options">
+            <label class="sound-option">
+              <input type="radio" name="sound" value="on">
+              <span>🔊 音あり</span>
+            </label>
+            <label class="sound-option">
+              <input type="radio" name="sound" value="off" checked>
+              <span>🔇 音なし</span>
+            </label>
+          </div>
+        </fieldset>
+        <button class="main-button" id="startButton" type="button">戦いを始める</button>
+      </div>
+    </section>
+
+    <section class="screen hidden" id="endScreen">
+      <div class="card">
+        <p class="kicker">蚊側から苦情が届いています</p>
+        <h2>そこまで！</h2>
+        <div class="result-score" id="finalScore">0</div>
+        <div class="result-label">スコア</div>
+        <p class="best">ハイスコア：<span id="finalBest">0</span>点</p>
+        <div class="result-rank" id="resultRank">蚊と共存する者</div>
+        <div class="result-comment" id="resultComment">今日は平和主義でいこう。</div>
+        <div class="mosquito-will" id="mosquitoWill">まだ…吸ってないのに…</div>
+        <div class="button-stack">
+          <div class="share-buttons" id="shareButtons" hidden>
+            <button class="main-button share-button share-x" id="shareXButton" type="button">Xでシェア</button>
+            <button class="main-button share-button share-threads" id="shareThreadsButton" type="button">Threadsでシェア</button>
+            <button class="main-button share-button share-line" id="shareLineButton" type="button">LINEで送る</button>
+          </div>
+          <button class="main-button retry-button" id="restartButton" type="button">もう一度くだらなく遊ぶ</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+
+    const DURATION = 30;
+    const BEST_KEY = "mosquitoBakaGameBest";
+    const SAFE_TOP = 145;
+    const NORMAL_LINES = [
+      "ペシッ！", "うわっ", "まだだ…", "兄の仇！", "そこにいたか",
+      "話は聞かない", "夏、終了", "無慈悲！", "今のは手だった", "次！"
+    ];
+    const BOSS_LINES = ["痛い", "やめろ", "話せばわかる"];
+    const RANKS = [
+      { combo: 0, name: "ぺちぺち初心者" },
+      { combo: 5, name: "夏の守護者" },
+      { combo: 10, name: "部屋の支配者" },
+      { combo: 15, name: "蚊界の終焉" },
+      { combo: 25, name: "網戸を超えし者" }
+    ];
+    const RESULT_RANKS = [
+      { min: 200, title: "蚊の歴史を終わらせた者", comment: "来世では蚊に謝ってください。" },
+      { min: 150, title: "伝説のペシャンコ職人", comment: "その指先、もはや兵器。" },
+      { min: 120, title: "蚊界の終焉", comment: "出現した瞬間、運命は決まっている。" },
+      { min: 100, title: "蚊から恐れられし者", comment: "蚊界で名前が広まり始めた。" },
+      { min: 90, title: "夏の守護神", comment: "網戸の向こうで噂になっている。" },
+      { min: 80, title: "部屋の支配者", comment: "もうこの部屋に逃げ場はない。" },
+      { min: 70, title: "蚊ハンター", comment: "蚊の動きが見えている。" },
+      { min: 60, title: "人類代表", comment: "ここから先は才能の領域。" },
+      { min: 50, title: "ぺシャンコ職人", comment: "潰し方に無駄がない。" },
+      { min: 40, title: "夜の見張り番", comment: "耳元のプーンに反応できる人。" },
+      { min: 30, title: "蚊取り係長", comment: "家族から頼られ始めるレベル。" },
+      { min: 20, title: "まあまあ叩ける人", comment: "部屋の安全度が少し上がった。" },
+      { min: 10, title: "夏の初心者", comment: "蚊に少しだけ圧をかけ始めた。" },
+      { min: 1, title: "見習いぺちぺち隊", comment: "まずは1匹ずつ確実に。" },
+      { min: 0, title: "蚊と共存する者", comment: "今日は平和主義でいこう。" }
+    ];
+    const MOSQUITO_WILLS = {
+      low: [
+        "まだ…吸ってないのに…",
+        "耳元で飛んだだけなのに…",
+        "今日は見逃してくれると思った",
+        "次は網戸の隙間から行く"
+      ],
+      middle: [
+        "デカ蚊先輩を呼んでくる",
+        "その反射神経、何者？",
+        "ちょっと本気出しすぎでは？",
+        "人間にも加減というものがある"
+      ],
+      high: [
+        "人間、強すぎる",
+        "今日は負けを認めよう",
+        "蚊界には近づかないでください",
+        "来世はカブトムシになります"
+      ],
+      legendary: [
+        "蚊一同、あなたの部屋を出禁にします",
+        "歴史書にはあなたを災害と記す",
+        "もう夏を返してほしい",
+        "遺言を書く時間すらなかった"
+      ]
+    };
+
+    const game = document.getElementById("game");
+    const arena = document.getElementById("arena");
+    const timeEl = document.getElementById("time");
+    const scoreEl = document.getElementById("score");
+    const comboEl = document.getElementById("combo");
+    const rankEl = document.getElementById("rank");
+    const bestEl = document.getElementById("best");
+    const startScreen = document.getElementById("startScreen");
+    const endScreen = document.getElementById("endScreen");
+    const finalScoreEl = document.getElementById("finalScore");
+    const finalBestEl = document.getElementById("finalBest");
+    const resultRankEl = document.getElementById("resultRank");
+    const resultCommentEl = document.getElementById("resultComment");
+    const mosquitoWillEl = document.getElementById("mosquitoWill");
+    const shareButtons = document.getElementById("shareButtons");
+    const soundInputs = document.querySelectorAll('input[name="sound"]');
+
+    let soundEnabled = false;
+    let audioCtx = null;
+    const activeOscillators = new Set();
+
+    const state = {
+      phase: "ready",
+      score: 0,
+      combo: 0,
+      best: loadBest(),
+      startAt: 0,
+      lastAt: 0,
+      nextSpawnAt: 0,
+      frameId: null,
+      entityId: 1,
+      entities: new Map(),
+      lastFiveStarted: false,
+      lastCountdownSecond: null,
+      result: RESULT_RANKS[RESULT_RANKS.length - 1]
+    };
+
+    bestEl.textContent = state.best;
+
+    function loadBest() {
+      try {
+        const value = Number.parseInt(localStorage.getItem(BEST_KEY), 10);
+        return Number.isFinite(value) && value >= 0 ? value : 0;
+      } catch {
+        return 0;
+      }
+    }
+
+    function saveBest() {
+      try {
+        localStorage.setItem(BEST_KEY, String(state.best));
+      } catch {
+        // 保存できない環境でもゲーム自体は続ける
+      }
+    }
+
+    function initAudio() {
+      if (!soundEnabled) return;
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) {
+        soundEnabled = false;
+        return;
+      }
+      if (!audioCtx) audioCtx = new AudioContextClass();
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {
+          soundEnabled = false;
+        });
+      }
+    }
+
+    function stopAllSounds() {
+      for (const oscillator of activeOscillators) {
+        try {
+          oscillator.stop();
+        } catch {
+          // すでに停止済みなら何もしない
+        }
+      }
+      activeOscillators.clear();
+    }
+
+    function setSoundEnabled(enabled) {
+      soundEnabled = Boolean(enabled);
+      if (soundEnabled) {
+        initAudio();
+      } else {
+        stopAllSounds();
+        if (audioCtx && audioCtx.state === "running") {
+          audioCtx.suspend().catch(() => {});
+        }
+      }
+    }
+
+    // すべてのWeb Audio効果音は必ずこの関数だけを経由する
+    function playSound(type) {
+      if (!soundEnabled) return;
+      initAudio();
+      if (!soundEnabled || !audioCtx) return;
+
+      const notes = {
+        squash: [
+          { frequency: 190, duration: .11, wave: "triangle", end: 65, volume: .12 },
+          { frequency: 75, duration: .08, wave: "square", volume: .035, delay: .035 }
+        ],
+        combo: [
+          { frequency: 440, duration: .1, wave: "square", volume: .07 },
+          { frequency: 660, duration: .12, wave: "square", volume: .08, delay: .09 },
+          { frequency: 880, duration: .18, wave: "triangle", volume: .1, delay: .18 }
+        ],
+        fail: [
+          { frequency: 170, duration: .32, wave: "sawtooth", end: 52, volume: .085 }
+        ],
+        bonus: [
+          { frequency: 740, duration: .1, wave: "sine", volume: .1 },
+          { frequency: 990, duration: .12, wave: "sine", volume: .1, delay: .08 },
+          { frequency: 1320, duration: .2, wave: "sine", volume: .09, delay: .17 }
+        ],
+        countdown: [
+          { frequency: 620, duration: .1, wave: "square", volume: .07 }
+        ],
+        start: [
+          { frequency: 330, duration: .1, wave: "triangle", volume: .08 },
+          { frequency: 660, duration: .18, wave: "triangle", volume: .1, delay: .1 }
+        ],
+        end: [
+          { frequency: 440, duration: .14, wave: "square", volume: .07 },
+          { frequency: 294, duration: .18, wave: "square", volume: .07, delay: .14 },
+          { frequency: 196, duration: .28, wave: "triangle", volume: .09, delay: .31 }
+        ]
+      }[type];
+
+      if (!notes) return;
+
+      for (const note of notes) {
+        if (!soundEnabled) return;
+        const start = audioCtx.currentTime + (note.delay || 0);
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.type = note.wave;
+        oscillator.frequency.setValueAtTime(note.frequency, start);
+        if (note.end) {
+          oscillator.frequency.exponentialRampToValueAtTime(note.end, start + note.duration);
+        }
+        gainNode.gain.setValueAtTime(.0001, start);
+        gainNode.gain.exponentialRampToValueAtTime(note.volume, start + .008);
+        gainNode.gain.exponentialRampToValueAtTime(.0001, start + note.duration);
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        activeOscillators.add(oscillator);
+        oscillator.addEventListener("ended", () => activeOscillators.delete(oscillator), { once: true });
+        oscillator.start(start);
+        oscillator.stop(start + note.duration + .02);
+      }
+    }
+
+    function random(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function pick(items) {
+      return items[Math.floor(Math.random() * items.length)];
+    }
+
+    function elapsed(now = performance.now()) {
+      return Math.max(0, (now - state.startAt) / 1000);
+    }
+
+    function bounds(size = 58) {
+      const rect = arena.getBoundingClientRect();
+      const pad = size / 2 + 5;
+      return {
+        minX: pad,
+        maxX: Math.max(pad, rect.width - pad),
+        minY: Math.min(SAFE_TOP, rect.height * .28) + pad,
+        maxY: Math.max(Math.min(SAFE_TOP, rect.height * .28) + pad, rect.height - pad)
+      };
+    }
+
+    function chooseType(isPanic) {
+      const roll = Math.random();
+      if (roll < .08) return "sleeper";
+      if (roll < .17) return "runner";
+      if (roll < .25) return "boss";
+      if (roll < (isPanic ? .37 : .32)) return "gold";
+      return "normal";
+    }
+
+    function createEntity(now, forcedType) {
+      if (state.phase !== "playing") return;
+
+      const isPanic = DURATION - elapsed(now) <= 5;
+      const maxEntities = isPanic ? 22 : 8;
+      if (state.entities.size >= maxEntities) return;
+
+      const type = forcedType || chooseType(isPanic);
+      const size = type === "boss" ? 86 : type === "sleeper" ? 112 : 58;
+      const area = bounds(size);
+      const element = document.createElement("button");
+      const sprite = type === "sleeper" ? "😴" : "🦟";
+      const id = state.entityId++;
+      const angle = random(0, Math.PI * 2);
+      const speedByType = {
+        normal: [55, 90],
+        gold: [165, 225],
+        boss: [38, 58],
+        runner: [78, 115],
+        sleeper: [5, 13]
+      };
+      const speed = random(...speedByType[type]);
+
+      element.type = "button";
+      element.className = `target ${type}`;
+      element.dataset.id = String(id);
+      element.setAttribute("aria-label", {
+        normal: "普通の蚊",
+        gold: "金色の蚊、高得点",
+        boss: "デカ蚊、あと3回",
+        runner: "強すぎる蚊",
+        sleeper: "寝ている人、叩くな"
+      }[type]);
+      element.innerHTML = `<span class="sprite" aria-hidden="true">${sprite}</span>`;
+
+      const entity = {
+        id,
+        type,
+        element,
+        x: random(area.minX, area.maxX),
+        y: random(area.minY, area.maxY),
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size,
+        hp: type === "boss" ? 3 : 1,
+        bornAt: now,
+        lifetime: type === "gold" ? random(1800, 2600) : random(3300, 5700),
+        active: true
+      };
+
+      place(entity);
+      element.addEventListener("pointerdown", hitEntity);
+      arena.appendChild(element);
+      state.entities.set(id, entity);
+    }
+
+    function place(entity) {
+      entity.element.style.left = `${entity.x}px`;
+      entity.element.style.top = `${entity.y}px`;
+    }
+
+    function hitEntity(event) {
+      event.preventDefault();
+      if (state.phase !== "playing") return;
+
+      const entity = state.entities.get(Number(event.currentTarget.dataset.id));
+      if (!entity || !entity.active) return;
+
+      if (entity.type === "sleeper") {
+        state.score = Math.max(0, state.score - 15);
+        state.combo = 0;
+        playSound("fail");
+        showSpeech(entity.x, entity.y, "寝てるんだぞ！！ -15", "bad");
+        squashAndRemove(entity);
+        updateHud();
+        return;
+      }
+
+      if (entity.type === "runner") {
+        state.combo = 0;
+        playSound("fail");
+        showSpeech(entity.x, entity.y, "効かぬ！さらば！", "bad");
+        entity.active = false;
+        entity.element.classList.add("escaping");
+        window.setTimeout(() => removeEntity(entity.id), 300);
+        updateHud();
+        return;
+      }
+
+      if (entity.type === "boss" && entity.hp > 1) {
+        entity.hp -= 1;
+        playSound("squash");
+        entity.element.setAttribute("aria-label", `デカ蚊、あと${entity.hp}回`);
+        showSpeech(entity.x, entity.y, BOSS_LINES[3 - entity.hp - 1], "bad");
+        entity.element.classList.remove("hurt");
+        void entity.element.offsetWidth;
+        entity.element.classList.add("hurt");
+        state.score += 1;
+        state.combo += 1;
+        updateHud();
+        celebrateCombo();
+        return;
+      }
+
+      const points = entity.type === "gold" ? 8 : entity.type === "boss" ? 5 : 1;
+      state.score += points;
+      state.combo += 1;
+      playSound(entity.type === "gold" ? "bonus" : "squash");
+      const line = entity.type === "gold"
+        ? `金ピカ撃破！ +${points}`
+        : entity.type === "boss"
+          ? `${BOSS_LINES[2]} → デカ蚊、陥落！ +5`
+          : pick(NORMAL_LINES);
+
+      showSpeech(entity.x, entity.y, line, "good");
+      squashAndRemove(entity);
+      updateHud();
+      celebrateCombo();
+    }
+
+    function squashAndRemove(entity) {
+      entity.active = false;
+      entity.element.classList.add("squashed");
+      window.setTimeout(() => removeEntity(entity.id), 360);
+    }
+
+    function showSpeech(x, y, text, tone = "") {
+      const speech = document.createElement("div");
+      speech.className = `speech ${tone}`;
+      speech.textContent = text;
+      speech.style.left = `${x}px`;
+      speech.style.top = `${y}px`;
+      arena.appendChild(speech);
+      window.setTimeout(() => speech.remove(), 740);
+    }
+
+    function celebrateCombo() {
+      if (state.combo < 2) return;
+      game.classList.remove("shake");
+      void game.offsetWidth;
+      game.classList.add("shake");
+
+      if (state.combo % 5 === 0) {
+        playSound("combo");
+        const flash = document.createElement("div");
+        flash.className = "combo-flash";
+        flash.textContent = `${state.combo} COMBO!!`;
+        arena.appendChild(flash);
+        window.setTimeout(() => flash.remove(), 680);
+      }
+    }
+
+    function currentRank() {
+      let result = RANKS[0].name;
+      for (const rank of RANKS) {
+        if (state.combo >= rank.combo) result = rank.name;
+      }
+      return result;
+    }
+
+    function updateHud() {
+      scoreEl.textContent = state.score;
+      comboEl.textContent = state.combo;
+      rankEl.textContent = currentRank();
+    }
+
+    function removeEntity(id) {
+      const entity = state.entities.get(id);
+      if (!entity) return;
+      entity.element.removeEventListener("pointerdown", hitEntity);
+      entity.element.remove();
+      state.entities.delete(id);
+    }
+
+    function clearArena() {
+      for (const entity of state.entities.values()) {
+        entity.element.removeEventListener("pointerdown", hitEntity);
+        entity.element.remove();
+      }
+      state.entities.clear();
+      arena.querySelectorAll(".speech, .combo-flash").forEach((node) => node.remove());
+    }
+
+    function updateEntities(now, dt) {
+      const speedUp = 1 + Math.min(elapsed(now) / DURATION, 1) * .65;
+
+      for (const entity of [...state.entities.values()]) {
+        if (!entity.active) continue;
+        if (now - entity.bornAt > entity.lifetime) {
+          removeEntity(entity.id);
+          continue;
+        }
+
+        const area = bounds(entity.size);
+        entity.x += entity.vx * speedUp * dt;
+        entity.y += entity.vy * speedUp * dt;
+
+        if (entity.x <= area.minX || entity.x >= area.maxX) {
+          entity.vx *= -1;
+          entity.x = Math.max(area.minX, Math.min(area.maxX, entity.x));
+        }
+        if (entity.y <= area.minY || entity.y >= area.maxY) {
+          entity.vy *= -1;
+          entity.y = Math.max(area.minY, Math.min(area.maxY, entity.y));
+        }
+        place(entity);
+      }
+    }
+
+    function scheduleSpawn(now, isPanic) {
+      state.nextSpawnAt = now + (isPanic ? random(85, 170) : random(300, 590));
+    }
+
+    function loop(now) {
+      if (state.phase !== "playing") return;
+
+      const remaining = Math.max(0, DURATION - elapsed(now));
+      const isPanic = remaining <= 5;
+      const dt = Math.min((now - state.lastAt) / 1000, .05);
+      const shownSecond = Math.ceil(remaining);
+      state.lastAt = now;
+      timeEl.textContent = shownSecond;
+
+      if (isPanic && !state.lastFiveStarted) {
+        state.lastFiveStarted = true;
+        game.classList.add("last-five");
+        for (let i = 0; i < 9; i += 1) createEntity(now, i === 0 ? "gold" : undefined);
+      }
+
+      if (shownSecond <= 5 && shownSecond > 0 && shownSecond !== state.lastCountdownSecond) {
+        state.lastCountdownSecond = shownSecond;
+        if (soundEnabled) playSound("countdown");
+      }
+
+      updateEntities(now, dt);
+
+      if (now >= state.nextSpawnAt) {
+        createEntity(now);
+        if (isPanic && Math.random() < .55) createEntity(now);
+        scheduleSpawn(now, isPanic);
+      }
+
+      if (remaining <= 0) {
+        finishGame();
+        return;
+      }
+      state.frameId = requestAnimationFrame(loop);
+    }
+
+    function startGame() {
+      if (state.phase === "playing") return;
+      if (state.frameId !== null) cancelAnimationFrame(state.frameId);
+
+      if (soundEnabled) initAudio();
+
+      clearArena();
+      state.phase = "playing";
+      state.score = 0;
+      state.combo = 0;
+      state.entityId = 1;
+      state.lastFiveStarted = false;
+      state.lastCountdownSecond = null;
+      state.startAt = performance.now();
+      state.lastAt = state.startAt;
+      state.frameId = null;
+
+      game.classList.remove("last-five", "shake");
+      endScreen.classList.remove("special-result", "celebration");
+      endScreen.querySelectorAll(".confetti").forEach((node) => node.remove());
+      startScreen.classList.add("hidden");
+      endScreen.classList.add("hidden");
+      shareButtons.hidden = true;
+      timeEl.textContent = String(DURATION);
+      updateHud();
+      playSound("start");
+
+      createEntity(state.startAt, "normal");
+      createEntity(state.startAt, "normal");
+      scheduleSpawn(state.startAt, false);
+      state.frameId = requestAnimationFrame(loop);
+    }
+
+    function getResultRank(score) {
+      return RESULT_RANKS.find((rank) => score >= rank.min);
+    }
+
+    function getMosquitoWill(score) {
+      const group = score >= 150
+        ? MOSQUITO_WILLS.legendary
+        : score >= 80
+          ? MOSQUITO_WILLS.high
+          : score >= 30
+            ? MOSQUITO_WILLS.middle
+            : MOSQUITO_WILLS.low;
+      return pick(group);
+    }
+
+    function launchConfetti() {
+      const colors = ["#ff477e", "#ffd166", "#4cc9f0", "#72dd9b", "#845ef7"];
+      for (let i = 0; i < 42; i += 1) {
+        const piece = document.createElement("i");
+        piece.className = "confetti";
+        piece.style.left = `${random(0, 100)}%`;
+        piece.style.background = pick(colors);
+        piece.style.animationDelay = `${random(0, 1.1)}s`;
+        piece.style.animationDuration = `${random(1.8, 3.2)}s`;
+        endScreen.appendChild(piece);
+        window.setTimeout(() => piece.remove(), 4400);
+      }
+    }
+
+    function createShareText(score, title, comment) {
+      return `蚊潰しゲームで ${score}点！\n称号は『${title}』でした。\n${comment}\n#蚊潰しゲーム #ペシャンコ職人`;
+    }
+
+    function shareToX() {
+      if (state.phase !== "ended") return;
+      const text = createShareText(state.score, state.result.title, state.result.comment);
+      const pageUrl = location.href;
+      const shareUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(pageUrl)}`;
+      window.open(shareUrl, "_blank", "noopener,noreferrer");
+    }
+
+    function shareToThreads() {
+      if (state.phase !== "ended") return;
+      const pageUrl = location.href;
+      const text = `${createShareText(state.score, state.result.title, state.result.comment)}\n${pageUrl}`;
+      const shareUrl = `https://www.threads.net/intent/post?text=${encodeURIComponent(text)}`;
+      try {
+        window.open(shareUrl, "_blank", "noopener,noreferrer");
+      } catch {
+        // Threadsを開けない環境でもゲーム進行には影響させない
+      }
+    }
+
+    function shareToLine() {
+      if (state.phase !== "ended") return;
+      const text = createShareText(state.score, state.result.title, state.result.comment);
+      const pageUrl = location.href;
+      const shareUrl = `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(text)}`;
+      window.open(shareUrl, "_blank", "noopener,noreferrer");
+    }
+
+    function finishGame() {
+      if (state.phase !== "playing") return;
+      state.phase = "ended";
+      if (state.frameId !== null) cancelAnimationFrame(state.frameId);
+      state.frameId = null;
+
+      timeEl.textContent = "0";
+      game.classList.remove("last-five", "shake");
+      clearArena();
+
+      if (state.score > state.best) {
+        state.best = state.score;
+        saveBest();
+      }
+      state.result = getResultRank(state.score);
+      bestEl.textContent = state.best;
+      finalScoreEl.textContent = state.score;
+      finalBestEl.textContent = state.best;
+      resultRankEl.textContent = state.result.title;
+      resultCommentEl.textContent = state.result.comment;
+      mosquitoWillEl.textContent = getMosquitoWill(state.score);
+      endScreen.classList.toggle("special-result", state.score >= 100);
+      endScreen.classList.toggle("celebration", state.score >= 200);
+      endScreen.classList.remove("hidden");
+      shareButtons.hidden = false;
+      playSound("end");
+      if (state.score >= 200) launchConfetti();
+    }
+
+    function keepInBounds() {
+      for (const entity of state.entities.values()) {
+        const area = bounds(entity.size);
+        entity.x = Math.max(area.minX, Math.min(area.maxX, entity.x));
+        entity.y = Math.max(area.minY, Math.min(area.maxY, entity.y));
+        place(entity);
+      }
+    }
+
+    document.getElementById("startButton").addEventListener("click", startGame);
+    document.getElementById("restartButton").addEventListener("click", startGame);
+    document.getElementById("shareXButton").addEventListener("click", shareToX);
+    document.getElementById("shareThreadsButton").addEventListener("click", shareToThreads);
+    document.getElementById("shareLineButton").addEventListener("click", shareToLine);
+    soundInputs.forEach((input) => {
+      input.addEventListener("change", () => {
+        setSoundEnabled(input.value === "on" && input.checked);
+      });
+    });
+    window.addEventListener("resize", keepInBounds);
+    window.addEventListener("orientationchange", () => window.setTimeout(keepInBounds, 100));
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden || state.phase !== "playing") return;
+      const now = performance.now();
+      const pausedFor = Math.max(0, now - state.lastAt);
+      state.startAt += pausedFor;
+      state.nextSpawnAt += pausedFor;
+      state.lastAt = now;
+    });
+  </script>
+</body>
+</html>
